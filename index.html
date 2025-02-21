@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+		<link rel="icon" href="/icon.png">
+		<title>Mirror</title>
+		<style>
+			@font-face {
+				font-family: font;
+				src: url("/font.ttf");
+			}
+			* {
+				box-sizing: border-box;
+				padding: 0;
+				border: 0;
+				margin: 0;
+				color: white;
+				background-color: transparent;
+				font-family: font;
+				font-size: 13px;
+				line-height: 1.2;
+			}
+			html, body, main {
+				color: transparent;
+				background-color: black;
+				width: 100%;
+				height: 100%;
+				overflow: auto;
+			}
+			h1, h2 {
+				text-align: center;
+			}
+			a {
+				text-decoration: none;
+			}
+		</style>
+	</head>
+	<body>
+		<script>
+			function assert(value) {
+				if (value) {
+					return value;
+				} else {
+					throw undefined;
+				}
+			}
+
+			function duration(name, value) {
+				let result = 0;
+				const names = ["day", "hour", "minute", "second", "millisecond"];
+				const nameIndex = names.indexOf(name);
+				const values = [24, 60, 60, 1000, 1];
+				for (let index = 0; index < nameIndex; index += 1) {
+					if (value[names[index]]) {
+						result += value[names[index]] * values.slice(index, nameIndex).reduce((a, b) => a * b, 1);
+					}
+				}
+				if (value[names[nameIndex]]) {
+					result += value[names[nameIndex]];
+				}
+				for (let index = nameIndex + 1; index < names.length; index += 1) {
+					if (value[names[index]]) {
+						result += value[names[index]] / values.slice(nameIndex, index).reduce((a, b) => a * b, 1);
+					}
+				}
+				return result;
+			}
+
+			function dateTime(unix = Date.now()) {
+				function isLeapYear(year) {
+					return year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+				}
+				function daysMonth(year, month) {
+					return [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1];
+				}
+				function daysYear(year) {
+					let result = 0;
+					for (let month = 1; month <= 12; month += 1) {
+						result += daysMonth(year, month);
+					}
+					return result;
+				}
+				let result = {year: 1970, month: 1, day: 1, hour: 0, minute: 0, second: 0, millisecond: 0};
+				let error = unix;
+				const uneven = (name, days) => {
+					const milliseconds = duration("millisecond", {day: days(result[name])});
+					while (error >= milliseconds) {
+						result[name] += 1;
+						error -= milliseconds;
+					}
+				};
+				uneven("year", daysYear);
+				uneven("month", month => daysMonth(result.year, month));
+				for (const name of ["day", "hour", "minute", "second", "millisecond"]) {
+					const unit = duration("millisecond", {[name]: 1});
+					result[name] = Math.floor(error / unit);
+					error -= unit * result[name];
+				}
+				assert(error == 0);
+				return result;
+			}
+
+			function durationString(value) {
+				let result = "";
+				let error = duration("millisecond", value);
+				let first = true;
+				const unit = (name, padding, suffix) => {
+					const unit = duration("millisecond", {[name]: 1});
+					const units = Math.floor(error / unit);
+					if (!first, units > 0 || result.length > 0) {
+						let string = units.toString();
+						if (!first && padding) {
+							string = string.padStart(padding, "0");
+						}
+						if (suffix) {
+							string += suffix;
+						}
+						result += string;
+						first = false;
+					}
+					error -= unit * units;
+				};
+				unit("day", undefined, ":");
+				unit("hour", Math.ceil(Math.log10(24)), ":");
+				unit("minute", Math.ceil(Math.log10(60)), ":");
+				unit("second", result.length > 0 ? Math.ceil(Math.log10(60)) : undefined, ".");
+				unit("millisecond", Math.ceil(Math.log10(1000)));
+				return result;
+			}
+
+			function dateString(year, month, day) {
+				return `${year.toString().padStart(4, "0")}-${month.toString().padStart(2, "0")}-${day.toString().padStart(2, "0")}`;
+			}
+
+			function timeString(hour, minute, second, millisecond) {
+				return `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}:${second.toString().padStart(2, "0")}.${millisecond.toString().padStart(3, "0")}`;
+			}
+			
+			function dateTimeString(dateTime) {
+				return `${dateString(dateTime.year, dateTime.month, dateTime.day)} ${timeString(dateTime.hour, dateTime.minute, dateTime.second, dateTime.millisecond)}`;
+			}
+
+			const style = {
+				title: {
+					fontSize: ["1.5em", "1em"],
+					margin: "0.25em",
+				},
+			};
+
+			function resetMain() {
+				let element = document.querySelector("main");
+				if (element) {
+					element.remove();
+				}
+				element = document.createElement("main");
+				document.body.appendChild(element);
+				return element;
+			}
+
+			function centerColumn(element, vertical) {
+				element.style.display = "flex";
+				element.style.flexDirection = "column";
+				element.style.alignItems = "center";
+				if (vertical) {
+					element.style.justifyContent = "center";
+				}
+				return element;
+			}
+
+			function title(size, value = undefined) {
+				const element = document.createElement(`h${size + 1}`);
+				element.style.fontSize = style.title.fontSize[size];
+				element.style.margin = style.title.margin;
+				if (value) {
+					element.textContent = value;
+				}
+				return element;
+			}
+
+			function link(name, value) {
+				const element = document.createElement("a");
+				element.href = value;
+				element.textContent = name;
+				return element;
+			}
+
+			const response = ${response};
+
+			function typeDirectory() {
+				const main = centerColumn(resetMain(), false);
+				main.style.padding = "1em";
+				main.appendChild(title(0, response.directory == "" ? response.name : `${response.name}/${response.directory}`));
+				const paths = {};
+				for (const type of ["address", "directory", "file"]) {
+					paths[type] = response.paths.filter(path => path.type == type);
+					paths[type].sort((a, b) => a.value.localeCompare(b.value));
+				}
+				for (const address of paths.address) {
+					main.appendChild(link(`${address.value}/`, `https://${address.value}`));
+				}
+				if (response.directory != "") {
+					const parentDirectory = response.directory.split("/").slice(0, -1).join("/");
+					main.appendChild(link("..", `/${parentDirectory}`));
+				}
+				const href = (directory, path) => directory == "" ? `/${path}` : `/${directory}/${path}`;
+				for (const path of paths.directory) {
+					main.appendChild(link(`${path.value}/`, href(response.directory, path.value)));
+				}
+				for (const path of paths.file) {
+					main.appendChild(link(`${path.value}`, href(response.directory, path.value)));
+				}
+			}
+
+			function type404() {
+				const loop = () => {
+					const main = centerColumn(resetMain(), true);
+					main.appendChild(title(0, "404"));
+					main.appendChild(title(1, `${dateTimeString(dateTime(response.utc))} + ${durationString({millisecond: Date.now() - response.utc})} UTC`));
+					main.appendChild(title(1, response.address))
+					main.appendChild(title(1, response.url))
+					setTimeout(loop, Math.round(1000 / 60));
+				};
+				loop();
+			}
+
+			window.onload = async () => {
+				switch (response.type) {
+					case "directory": return typeDirectory();
+					case "404": return type404();
+					default: throw undefined;
+				}
+			};
+		</script>
+	</body>
+</html>
